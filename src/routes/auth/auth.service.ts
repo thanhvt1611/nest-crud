@@ -32,26 +32,33 @@ export class AuthService {
   }
 
   async login(body: LoginBodyDTO) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: body.email,
-      },
-    });
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-    const isMatch = await this.hashingService.comparePassword(body.password, user.password);
-    if (!isMatch) {
-      throw new UnprocessableEntityException({
-        field: 'password',
-        error: 'Password is incorrect',
+    try {
+      const user = await this.prisma.user.findUniqueOrThrow({
+        where: {
+          email: body.email,
+        },
       });
+
+      const isMatch = await this.hashingService.comparePassword(body.password, user.password);
+      if (!isMatch) {
+        throw new UnprocessableEntityException({
+          field: 'password',
+          error: 'Password is incorrect',
+        });
+      }
+
+      const tokens = await this.generateTokens(user.id);
+
+      return {
+        ...user,
+        ...tokens,
+      };
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new UnauthorizedException('User not found');
+      }
+      throw error;
     }
-    const tokens = await this.generateTokens(user.id);
-    return {
-      ...user,
-      ...tokens,
-    };
   }
 
   async generateTokens(userId: number) {
