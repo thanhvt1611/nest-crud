@@ -104,4 +104,27 @@ export class AuthService {
       throw error;
     }
   }
+
+  async logout(refreshToken: string) {
+    try {
+      const refreshTokenRecord = await this.prisma.refreshToken.findFirstOrThrow({
+        where: {
+          token: refreshToken,
+        },
+      });
+
+      await this.prisma.refreshToken.delete({
+        where: {
+          id: refreshTokenRecord.id,
+        },
+      });
+
+      return { message: 'Logout successfully' };
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      throw error;
+    }
+  }
 }
