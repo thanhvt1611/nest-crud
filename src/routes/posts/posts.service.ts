@@ -1,29 +1,73 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 import { PrismaService } from '../../shared/services/prisma.service';
+import { isNotFoundError } from '../../shared/helpers';
 
 @Injectable()
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
-  create(body: any) {
-    return body;
+  create(body: CreatePostDto, userId: number) {
+    return this.prisma.post.create({
+      data: { ...body, authorId: userId },
+      include: { author: { omit: { password: true } } },
+    });
   }
 
-  findAll() {
-    return this.prisma.post.findMany();
+  findAll(userId: number) {
+    return this.prisma.post.findMany({
+      where: {
+        authorId: userId,
+      },
+      include: {
+        author: {
+          omit: {
+            password: true,
+          },
+        },
+      },
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} post`;
+  async findOne(id: number) {
+    try {
+      return await this.prisma.post.findUniqueOrThrow({
+        where: { id },
+        include: { author: { omit: { password: true } } },
+      });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new UnauthorizedException('Post not found');
+      }
+      throw error;
+    }
   }
 
-  update(id: number, updatePostDto: UpdatePostDto) {
-    return `This action updates a #${id} post`;
+  async update(body: { id: number; updatePostDto: UpdatePostDto; userId: number }) {
+    try {
+      const { id, updatePostDto, userId } = body;
+      return await this.prisma.post.update({
+        data: updatePostDto,
+        where: { id, authorId: userId },
+        include: { author: { omit: { password: true } } },
+      });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new UnauthorizedException('Post not found');
+      }
+      throw error;
+    }
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} post`;
+  async remove(id: number, userId: number) {
+    try {
+      return await this.prisma.post.delete({ where: { id, authorId: userId } });
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        throw new UnauthorizedException('Post not found');
+      }
+      throw error;
+    }
   }
 }
